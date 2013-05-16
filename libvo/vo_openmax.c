@@ -21,11 +21,13 @@
  */
 
 #include "config.h"
+#include <errno.h>
 #include "fastmemcpy.h"
 #include "video_out.h"
 #include "video_out_internal.h"
 #include "aspect.h"
 #include "mp_msg.h"
+#include "help_mp.h"
 #include "m_option.h"
 
 static const vo_info_t info =
@@ -58,7 +60,7 @@ static void uninit(void)
 static void check_events(void)
 {
 }
-static int preinit(const char *)
+static int preinit(const char * arg)
 {
     if(arg)
     {
