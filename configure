@@ -4923,6 +4923,30 @@ else
 fi
 
 
+echocheck "OpenMAX"
+if test "$_openmax" = auto ; then
+  cat > $TMPC <<EOF
+#include "interface/vcos/vcos.h"
+#include "interface/vcos/vcos_logging.h"
+#include "interface/vmcs_host/vchost.h"
+
+#include "IL/OMX_Broadcom.h"
+
+int main(void) { return 0; }
+EOF
+  _openmax=no
+  cc_check && _openmax=yes
+fi
+if test "$_openmax" = yes ; then
+  vomodules="openmax $vomodules"
+  def_openmax='#define CONFIG_OPENMAX 1'
+else
+  novomodules="openmax $novomodules"
+  def_openmax="#undef CONFIG_OPENMAX"
+fi
+echores "$_openmax"
+
+
 if darwin; then
 
 echocheck "QuickTime"
@@ -4954,28 +4978,6 @@ else
 fi
 echores $_quartz
 
-echocheck "OpenMAX"
-if test "$_openmax" = auto ; then
-  cat > $TMPC <<EOF
-#include "interface/vcos/vcos.h"
-#include "interface/vcos/vcos_logging.h"
-#include "interface/vmcs_host/vchost.h"
-
-#include "IL/OMX_Broadcom.h"
-
-int main(void) { return 0; }
-EOF
-  _openmax=no
-  cc_check && _openmax=yes
-fi
-if test "$_openmax" = yes ; then
-  vomodules="openmax $vomodules"
-  def_openmax='#define CONFIG_OPENMAX 1'
-else
-  novomodules="openmax $novomodules"
-  def_openmax="#undef CONFIG_COREVIDEO"
-fi
-echores "$_openmax"
 
 echocheck "CoreVideo"
 if test "$_corevideo" = auto ; then
