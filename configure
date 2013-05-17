@@ -4931,7 +4931,7 @@ fi
 if test "$_openmax" = yes ; then
   vomodules="openmax $vomodules"
   def_openmax='#define CONFIG_OPENMAX 1'
-  libs_mplayer="$libs_mplayer -lvcos"
+  libs_mplayer="$libs_mplayer -lvcos -lbcm_host -lvchiq_arm -lopenmaxil"
 else
   novomodules="openmax $novomodules"
   def_openmax="#undef CONFIG_OPENMAX"

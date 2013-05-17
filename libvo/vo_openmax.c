@@ -21,6 +21,12 @@
  */
 
 #include "config.h"
+
+// for sbrk routine
+#define _BSD_SOURCE 1
+#include <unistd.h>
+
+
 #include <errno.h>
 #include "fastmemcpy.h"
 #include "video_out.h"
@@ -29,6 +35,16 @@
 #include "mp_msg.h"
 #include "help_mp.h"
 #include "m_option.h"
+
+
+
+#include "bcm_host.h"
+
+#define USE_VCHIQ_ARM
+#include "interface/vmcs_host/vcilcs.h"
+#include "interface/vmcs_host/vchost.h"
+#include "interface/vmcs_host/vcilcs_common.h"
+#include "IL/OMX_Component.h"
 
 static const vo_info_t info =
 {
@@ -39,6 +55,71 @@ static const vo_info_t info =
 };
 
 const LIBVO_EXTERN(openmax)
+typedef struct {
+  int vcos_initialized;
+  VCOS_ONCE_T once;
+  ILCS_SERVICE_T *ilcs_service;
+  int active_handle_count;
+} vo_openmax_priv_t;
+
+static vo_openmax_priv_t priv;
+
+static VCOS_MUTEX_T lock;
+static void initOnce(void)
+{
+    VCOS_STATUS_T status;
+    status = vcos_mutex_create(&lock, VCOS_FUNCTION);
+    vcos_demand(status == VCOS_SUCCESS);
+}
+static int omx_init(vo_openmax_priv_t* priv)
+{
+  VCOS_STATUS_T status;
+  VCHI_INSTANCE_T initialize_instance;
+  VCHI_CONNECTION_T *connection;
+  ILCS_CONFIG_T config;
+
+  status = vcos_once(&priv->once, initOnce);
+  vcos_demand(status == VCOS_SUCCESS);
+
+  vcos_mutex_lock(&lock);  
+  if (priv->vcos_initialized > 0)
+  {
+    priv->vcos_initialized++;
+    vcos_mutex_unlock(&lock);
+    return 0;
+  }
+  
+  vc_host_get_vchi_state(&initialize_instance, &connection);
+  vcilcs_config(&config);
+  priv->ilcs_service = ilcs_init((VCHIQ_INSTANCE_T)initialize_instance, (void**)&connection, &config, 0);
+  if (priv->ilcs_service == NULL)
+  {
+    mp_msg(MSGT_VO, MSGL_ERR, "ilcs init error: %x\n", status);
+    vcos_mutex_unlock(&lock);
+    return -1;
+  }
+  priv->vcos_initialized = 1;
+  vcos_mutex_unlock(&lock);
+  return 0;
+}
+static void omx_uninit(vo_openmax_priv_t* priv)
+{
+  if (priv->vcos_initialized ==0)
+    return;
+
+  if (priv->vcos_initialized==1 && priv->active_handle_count >0)
+    return;
+
+  vcos_mutex_lock(&lock);
+  priv->vcos_initialized--;
+  if (priv->vcos_initialized == 0)
+  {
+    ilcs_deinit(priv->ilcs_service);
+    priv->ilcs_service = NULL;
+  }
+  vcos_mutex_unlock(&lock);
+}
+
 
 static int draw_slice(uint8_t *image[], int stride[], int w,int h,int x,int y)
 {
@@ -56,6 +137,7 @@ static int draw_frame(uint8_t *src[])
 }
 static void uninit(void)
 {
+  omx_uninit(&priv);
 }
 static void check_events(void)
 {
@@ -67,6 +149,16 @@ static int preinit(const char * arg)
 	mp_msg(MSGT_VO,MSGL_WARN, MSGTR_LIBVO_NULL_UnknownSubdevice,arg);
 	return ENOSYS;
     }
+
+    memset(&priv, 0, sizeof(priv));
+
+   priv.once = VCOS_ONCE_INIT;
+
+    // BCM chip initialization. Must be called before any operation
+    bcm_host_init();
+
+    if (omx_init(&priv) != 0)
+        return ENOSYS;
     return 0;
 }
 static int
