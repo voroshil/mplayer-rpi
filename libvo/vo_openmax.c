@@ -33,7 +33,7 @@
 static const vo_info_t info =
 {
 	"OpenMAX video output",
-	"null",
+	"openmax",
 	"Vladimir Voroshilov <voroshil@gmail.com>",
 	""
 };
